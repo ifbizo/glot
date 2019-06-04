@@ -1,7 +1,9 @@
 package glot
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 )
 
 // SetTitle sets the title for the plot
@@ -180,6 +182,40 @@ func (plot *Plot) SavePlot(filename string) (err error) {
 	plot.CheckedCmd(outputFileCommand)
 	plot.CheckedCmd("replot  ")
 	return nil
+}
+
+// FinishPlotStdout function is used to save the plot to a buffer.
+// Since this closes the stdin connection in order to indicate end of the,
+// stdout buffer, the plot should be considered finished, i.e. no additional
+// pointgroups can be added or removed to save variations of the plot.
+//
+// Usage
+//  dimensions := 3
+//  persist := false
+//  debug := false
+//  plot, _ := glot.NewPlot(dimensions, persist, debug)
+//  plot.AddPointGroup("Sample 1", "lines", []float64{2, 3, 4, 1})
+//  plot.SetTitle("Test Results")
+// 	plot.SetZrange(-2,2)
+//  b, _ := plot.FinishPlotStdout()
+//  // can now use b.String(), e.g. to write to http.ResponseWriter for some fcgi app
+func (plot *Plot) FinishPlotStdout() (b *bytes.Buffer, err error) {
+	buf := new(bytes.Buffer)
+	if plot.nplots == 0 {
+		return buf, &gnuplotError{fmt.Sprintf("This plot has 0 curves and therefore its a redundant plot and it can't be printed.")}
+	}
+	outputFormat := "set terminal " + plot.format
+	plot.CheckedCmd(outputFormat)
+	plot.CheckedCmd("replot  ")
+	plot.proc.stdin.Close() // close to use Wait()
+	go func() {
+		_, err := io.Copy(buf, plot.proc.stdout)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	plot.proc.handle.Wait()
+	return buf, nil
 }
 
 // SetFormat function is used to save the plot at this point.

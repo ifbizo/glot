@@ -43,6 +43,7 @@ func (e *gnuplotError) Error() string {
 type plotterProcess struct {
 	handle *exec.Cmd
 	stdin  io.WriteCloser
+	stdout io.ReadCloser
 }
 
 // newPlotterProc function makes the plotterProcess struct
@@ -56,7 +57,11 @@ func newPlotterProc(persist bool) (*plotterProcess, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &plotterProcess{handle: cmd, stdin: stdin}, cmd.Start()
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	return &plotterProcess{handle: cmd, stdin: stdin, stdout: stdout}, cmd.Start()
 }
 
 // Cmd sends a command to the gnuplot subprocess and returns an error
